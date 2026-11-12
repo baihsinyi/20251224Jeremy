@@ -649,31 +649,21 @@
 
     <!-- Modal: 雙人雲端同步房間密碼設定 -->
     <div id="sync-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl space-y-4 modal-animate max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl space-y-4 modal-animate">
             <div class="flex justify-between items-center">
                 <h3 class="font-bold text-base text-sailor-navy">☁️ 雙人手機即時同步設定</h3>
                 <button onclick="closeModal('sync-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">✕</button>
             </div>
             <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-3.5 text-xs text-slate-600 space-y-1.5">
                 <p class="font-bold text-donald-blue">💡 如何讓兩支手機即時連動？</p>
-                <p>1. 請你和男友設定一組相同的**「情侶專屬房間密碼」**（建議 6 位以上英數字）。</p>
-                <p>2. 若部署在 **GitHub Pages**，請在下方展開「進階：貼上自己的 Firebase 設定」貼入免費申請的設定碼即可永久跨裝置同步！</p>
+                <p>1. 請你和男友設定一組相同的**「情侶專屬房間密碼」**（建議 6 位以上英數字，避免與他人重複）。</p>
+                <p>2. 雙方都輸入並點擊「開啟雙人同步」後，任何新增或修改都會即時出現在彼此的手機上！</p>
             </div>
             <div class="space-y-3">
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 block mb-1">情侶專屬房間密碼 (Room Code)</label>
                     <input id="input-room-code" type="text" placeholder="例如：DonaldDaisy20240301" class="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:border-donald-blue">
                 </div>
-
-                <!-- 供 GitHub 部署使用的自訂雲端設定折疊區 -->
-                <details class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs">
-                    <summary class="font-bold text-slate-600 cursor-pointer select-none">🔧 GitHub 部署專用：貼上 Firebase 設定碼</summary>
-                    <div class="mt-2.5 space-y-2">
-                        <p class="text-[10px] text-slate-400 leading-relaxed">將 Firebase 控制台取得的 <code class="bg-slate-200 px-1 rounded">firebaseConfig = { ... }</code> 整段貼在下方：</p>
-                        <textarea id="input-custom-firebase" rows="4" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "..."}' class="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-donald-blue"></textarea>
-                    </div>
-                </details>
-
                 <div id="current-room-info" class="hidden text-[11px] text-emerald-600 font-bold flex items-center justify-between bg-emerald-50 px-3 py-2 rounded-xl">
                     <span>🟢 目前已連線房間：<span id="active-room-display" class="font-mono"></span></span>
                     <button onclick="disconnectRoom()" class="text-rose-500 underline text-[10px]">中斷連線</button>
@@ -743,13 +733,12 @@
                 girl: [
                     { id: 901, label: '🥤 手搖飲習慣', value: '熟成紅茶拿鐵 • 一分糖去冰' },
                     { id: 902, label: '👗 衣服 / 鞋子尺寸', value: '上衣 S / 鞋子 23.5 cm' },
-                    { id: 903, label: '🚫 飲食禁忌', value: '不吃香菜、生洋蔥' },
-                    { id: 904, label: '🌸 喜歡的花與香氛', value: '白玫瑰、小蒼蘭淡香水' }
+                    { id: 903, label: '🚫 飲食禁忌', value: '不吃香菜、生蔥花' },
+                    { id: 904, label: '🌸 喜歡的驚喜', value: '草莓甜點、拍立得底片、手寫卡片' }
                 ]
             }
         };
 
-        // 2. 應用程式全域狀態與雲端連線變數
         let appState = JSON.parse(JSON.stringify(defaultState));
         let viewYear = currentYear;
         let viewMonth = currentMonth;
@@ -758,26 +747,24 @@
         let activeProfileTab = 'boy';
         let isSpinning = false;
 
+        // 雲端同步狀態變數
         let db = null;
         let auth = null;
         let currentUser = null;
         let currentRoomCode = '';
         let unsubscribeSnapshot = null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'donald-daisy-couple-space';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'donald-daisy-couple-app';
 
-        // 初始化雲端服務 (自動相容預覽環境與 GitHub 部署自訂設定)
-        async function initCloudSync(customConfigObj = null) {
+        // 初始化雲端服務
+        async function initCloudSync() {
             try {
-                let firebaseConfig = customConfigObj;
-                if (!firebaseConfig && typeof __firebase_config !== 'undefined' && __firebase_config) {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                }
-                if (firebaseConfig && firebaseConfig.apiKey) {
-                    const app = initializeApp(firebaseConfig, customConfigObj ? 'custom-gh-app' : undefined);
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
 
-                    if (!customConfigObj && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
                         await signInAnonymously(auth);
@@ -785,35 +772,16 @@
 
                     onAuthStateChanged(auth, (user) => {
                         currentUser = user;
+                        // 檢查網址參數是否有帶入 ?room=xxx 方便情侶直接分享連結一鍵連線
                         const urlParams = new URLSearchParams(window.location.search);
                         const roomFromUrl = urlParams.get('room');
-                        if (roomFromUrl && user && !currentRoomCode) {
+                        if (roomFromUrl && user) {
                             joinCloudRoom(roomFromUrl.trim(), true);
                         }
                     });
-                    return true;
                 }
             } catch (err) {
                 console.warn('雲端初始化提示:', err);
-            }
-            return false;
-        }
-
-        // 解析使用者貼上的 Firebase 設定文字 (支援純 JSON 或 JS 物件格式)
-        function parseFirebaseConfigInput(rawText) {
-            if (!rawText || !rawText.trim()) return null;
-            try {
-                const startIdx = rawText.indexOf('{');
-                const endIdx = rawText.lastIndexOf('}');
-                if (startIdx === -1 || endIdx === -1) return null;
-                let objStr = rawText.slice(startIdx, endIdx + 1);
-                // 將未加雙引號的 JS key 轉為標準 JSON key
-                objStr = objStr.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-                // 將單引號轉為雙引號並移除結尾多餘逗號
-                objStr = objStr.replace(/'/g, '"').replace(/,\s*}/g, '}');
-                return JSON.parse(objStr);
-            } catch (e) {
-                return null;
             }
         }
 
@@ -926,21 +894,11 @@
             document.getElementById('sync-modal').classList.remove('hidden');
         };
 
-        window.connectRoom = async function() {
+        window.connectRoom = function() {
             const code = document.getElementById('input-room-code').value.trim();
             if (!code) {
                 showToast('請輸入情侶專屬房間密碼！');
                 return;
-            }
-            const customRaw = document.getElementById('input-custom-firebase').value;
-            if (customRaw.trim()) {
-                const parsed = parseFirebaseConfigInput(customRaw);
-                if (!parsed || !parsed.apiKey) {
-                    showToast('Firebase 設定碼格式不正確，請檢查後重試！');
-                    return;
-                }
-                showToast('正在連線至你的專屬雲端資料庫...');
-                await initCloudSync(parsed);
             }
             joinCloudRoom(code, false);
         };
